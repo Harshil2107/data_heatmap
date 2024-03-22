@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Instruction Heatmap</title>
+    <style>
+        .instruction {
+            font-family: monospace;
+        }
+        /*.highlight {
+             Placeholder for dynamic styling 
+        } */
+    </style>
+</head>
+<body>
+    <input type="file" id="textFileInput" accept=".txt">
+    <input type="file" id="jsonFileInput" accept=".json">
+    <button onclick="loadFiles()">Load Files</button>
+    <div id="instructionContainer"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
