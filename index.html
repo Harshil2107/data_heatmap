@@ -7,16 +7,15 @@
         .instruction {
             font-family: monospace;
         }
-        /*.highlight {
-             Placeholder for dynamic styling 
-        } */
     </style>
 </head>
 <body>
     <input type="file" id="textFileInput" accept=".txt">
     <input type="file" id="jsonFileInput" accept=".json">
+    <select id="regionSelect" style="display: none;"></select>
     <button onclick="loadFiles()">Load Files</button>
     <div id="instructionContainer"></div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 
     <script src="script.js"></script>
 </body>

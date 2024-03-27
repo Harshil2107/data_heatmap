@@ -6,11 +6,44 @@ function loadFiles() {
         const textFile = textFileInput.files[0];
         const jsonFile = jsonFileInput.files[0];
 
-        readAndProcessFiles(textFile, jsonFile);
+        readAndPopulateRegionDropdown(textFile, jsonFile);
     } else {
         console.log('Please select both a text file and a JSON file.');
     }
 }
+
+async function readAndPopulateRegionDropdown(textFile, jsonFile) {
+    const jsonData = await readFile(jsonFile, true);
+    populateRegionDropdown(jsonData["regional_info"]);
+    // Store textData in a global variable for later use
+    window.textData = await readFile(textFile);
+}
+
+function populateRegionDropdown(regionalInfo) {
+    const regionSelect = document.getElementById('regionSelect');
+    regionSelect.innerHTML = ''; // Clear previous options
+    Object.keys(regionalInfo).forEach(region => {
+        const option = document.createElement('option');
+        option.value = region;
+        option.textContent = `Region ${region}`;
+        if (region === '0') {
+            option.selected = true; // Select the first region by default
+        }
+        regionSelect.appendChild(option);
+    });
+    regionSelect.style.display = 'inline'; // Make the dropdown visible
+
+    // Remove existing onchange event listeners to avoid duplicates
+    regionSelect.onchange = null;
+    // Attach a new onchange event listener
+    regionSelect.onchange = () => {
+        const jsonFile = document.getElementById('jsonFileInput').files[0];
+        readFile(jsonFile, true).then(jsonData => {
+            displayAndHighlightInstructions(window.textData, jsonData);
+        });
+    };
+}
+
 
 async function readAndProcessFiles(textFile, jsonFile) {
     const textData = await readFile(textFile);
@@ -41,45 +74,98 @@ function readFile(file, isJson = false) {
 }
 
 function displayAndHighlightInstructions(text, jsonData) {
-    const lines = text.split('\n');
+    const selectedRegion = document.getElementById('regionSelect').value;
     const container = document.getElementById('instructionContainer');
-
+    container.innerHTML = ''; // Clear previous instructions
+    
+    const regionInfo = jsonData["regional_info"][selectedRegion];
+    if (!regionInfo) {
+        console.log(`No data for selected region: ${selectedRegion}`);
+        return;
+    }
     const block_instruction_count = jsonData["basic_block_instrution_count"];
-    console.log(block_instruction_count)
-    const region_0_block_frequency = jsonData["regional_info"]["0"]["basic_block_encountered_frequency"];
+    const block_frequency = regionInfo["basic_block_encountered_frequency"];
+    const frequencies = Object.values(block_frequency);
+    const domainMin = Math.max(1, Math.min(...frequencies));
+    const domainMax = Math.max(...frequencies);
+    const logColorScale = updateLogColorScale(domainMin, domainMax);
+    const lines = text.split('\n');
+    let encountered_addresses = new Set();
     lines.forEach((line, index) => {
         const lineElement = document.createElement('div');
         lineElement.textContent = line;
         lineElement.className = 'instruction';
+        
+
 
         // Simple logic to determine highlighting based on JSON data
         // Adjust according to your JSON structure and data
         const addressMatch = line.match(/^[\s]*([0-9a-f]{4,}):/);
         if (addressMatch) {
-
+            
             const address = `0x${addressMatch[1].toLowerCase()}` // Assuming JSON keys are lowercase
-            // console.log(address)
-            if (region_0_block_frequency.hasOwnProperty(address)) {
-                console.log(block_instruction_count)
+            encountered_addresses.add(address)
+            if (block_frequency.hasOwnProperty(address)) {
                 const instruction_count = block_instruction_count[address]
-                const frequency = region_0_block_frequency[address]
+                const frequency = block_frequency[address]
+
                 console.log(`frequency of ${address} `,frequency)
                 console.log(`instruction count of ${address} `,instruction_count)
-                const intensity = Math.min(frequency * 0.1, 1); // Example calculation, adjust as needed
                 const start_index = Math.max(0, index - instruction_count+1)
-                lineElement.style.backgroundColor = `rgba(255, 0, 0, ${intensity})`;
+                lineElement.style.backgroundColor = logColorScale(Math.log(frequency));
                 lineElement.className += ' highlight';
-
+                lineElement.style.paddingBottom = "3px";
+                // Add a solid line (bottom border) after each line
+                lineElement.style.borderBottom = "1px solid #000"; // Solid black line
+                
                 for (let i = start_index; i < index; i++) {
+                    
                     const lineElement = container.children[i];
-                    lineElement.style.backgroundColor = `rgba(255, 0, 0,${intensity})`;
+                    if (i == start_index) {
+                        lineElement.style.marginTop = "3px";
+                        lineElement.style.borderTop = "1px solid #000"; // Solid black line
+                    }
+                    lineElement.style.backgroundColor = logColorScale(Math.log(frequency));
                     lineElement.className += ' highlight';
                 }
             }
         } 
          container.appendChild(lineElement);
-        
+    });
+    displayMissingAddressesWithFrequency(logColorScale ,block_frequency, block_instruction_count, encountered_addresses, container);
+}
 
-        
+function updateLogColorScale(domainMin, domainMax) {
+    // Adjust domainMin if it's 0 or less, as log scale cannot handle values <= 0
+    domainMin = Math.max(domainMin, 1);
+
+    return d3.scaleSequential(d3.interpolatePlasma)
+        .domain([Math.log(domainMin), Math.log(domainMax)])
+        .interpolator(d3.interpolateCividis); // You can choose other interpolators
+}
+
+function displayMissingAddressesWithFrequency(logColorScale, blockFrequency, blockInstructionCount, encounteredAddresses, container) {
+    Object.keys(blockFrequency).forEach(address => {
+        if (!encounteredAddresses.has(address)) {
+            // Address was not found in the text file but has a frequency in JSON
+            const frequency = blockFrequency[address];
+            const instructionCount = blockInstructionCount[address] || 1; // Default to 1 if not specified
+
+            for (let i = 0; i < instructionCount; i++) {
+                const missingElement = document.createElement('div');
+                if (i == 0) {
+                    missingElement.style.marginTop = "3px";
+                    missingElement.style.borderTop = "1px solid #000"; // Solid black line
+                }
+                if (i == instructionCount - 1) {
+                    missingElement.style.paddingBottom = "3px";
+                    missingElement.style.borderBottom = "1px solid #000"; // Solid black line
+                }
+                missingElement.textContent = `${address} (Frequency: ${frequency}, Not in text file)`;
+                missingElement.style.backgroundColor = logColorScale(Math.log(frequency)); // Heat map color coding
+                missingElement.className = 'instruction highlight';
+                container.appendChild(missingElement);
+            }
+        }
     });
 }
