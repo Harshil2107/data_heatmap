@@ -1,3 +1,5 @@
+let isFirstLoad = true;
+
 function loadFiles() {
     const textFileInput = document.getElementById('textFileInput');
     const jsonFileInput = document.getElementById('jsonFileInput');
@@ -14,9 +16,9 @@ function loadFiles() {
 
 async function readAndPopulateRegionDropdown(textFile, jsonFile) {
     const jsonData = await readFile(jsonFile, true);
+    window.textData = await readFile(textFile);
     populateRegionDropdown(jsonData["regional_info"]);
     // Store textData in a global variable for later use
-    window.textData = await readFile(textFile);
 }
 
 function populateRegionDropdown(regionalInfo) {
@@ -42,15 +44,18 @@ function populateRegionDropdown(regionalInfo) {
             displayAndHighlightInstructions(window.textData, jsonData);
         });
     };
+    if (isFirstLoad) {
+        regionSelect.onchange(); // Trigger the event listener immediately
+        isFirstLoad = false;
+    }
 }
 
+// async function readAndProcessFiles(textFile, jsonFile) {
+//     const textData = await readFile(textFile);
+//     const jsonData = await readFile(jsonFile, true);
 
-async function readAndProcessFiles(textFile, jsonFile) {
-    const textData = await readFile(textFile);
-    const jsonData = await readFile(jsonFile, true);
-
-    displayAndHighlightInstructions(textData, jsonData);
-}
+//     displayAndHighlightInstructions(textData, jsonData);
+// }
 
 function readFile(file, isJson = false) {
     return new Promise((resolve, reject) => {
@@ -89,6 +94,7 @@ function displayAndHighlightInstructions(text, jsonData) {
     const domainMin = Math.max(1, Math.min(...frequencies));
     const domainMax = Math.max(...frequencies);
     const logColorScale = updateLogColorScale(domainMin, domainMax);
+    const fontColorScale = createFontColorScale(domainMin, domainMax);
     const lines = text.split('\n');
     let encountered_addresses = new Set();
     lines.forEach((line, index) => {
@@ -117,6 +123,11 @@ function displayAndHighlightInstructions(text, jsonData) {
                 lineElement.style.paddingBottom = "3px";
                 // Add a solid line (bottom border) after each line
                 lineElement.style.borderBottom = "1px solid #000"; // Solid black line
+
+                const frequencyElement = document.createElement('div');
+                frequencyElement.textContent = `Frequency: ${frequency.toLocaleString()}`;
+                frequencyElement.style.color = fontColorScale(Math.log(frequency));
+                lineElement.appendChild(frequencyElement);
                 
                 for (let i = start_index; i < index; i++) {
                     
@@ -141,7 +152,15 @@ function updateLogColorScale(domainMin, domainMax) {
 
     return d3.scaleSequential(d3.interpolatePlasma)
         .domain([Math.log(domainMin), Math.log(domainMax)])
-        .interpolator(d3.interpolateCividis); // You can choose other interpolators
+        // .interpolator(d3.interpolateCividis); // You can choose other interpolators
+        .interpolator(d3.interpolateYlOrRd); // Currently using YlOrRd
+}
+
+function createFontColorScale(domainMin, domainMax) {
+    domainMin = Math.max(domainMin, 1);
+    return d3.scaleSequential(d3.interpolatePlasma)
+        .domain([Math.log(domainMin), Math.log(domainMax)])
+        .interpolator(d3.interpolateCividis); // Using RdBu for font color
 }
 
 function displayMissingAddressesWithFrequency(logColorScale, blockFrequency, blockInstructionCount, encounteredAddresses, container) {
@@ -161,7 +180,7 @@ function displayMissingAddressesWithFrequency(logColorScale, blockFrequency, blo
                     missingElement.style.paddingBottom = "3px";
                     missingElement.style.borderBottom = "1px solid #000"; // Solid black line
                 }
-                missingElement.textContent = `${address} (Frequency: ${frequency}, Not in text file)`;
+                missingElement.textContent = `${address} (Frequency: ${frequency.toLocaleString()}, Not in text file)`;
                 missingElement.style.backgroundColor = logColorScale(Math.log(frequency)); // Heat map color coding
                 missingElement.className = 'instruction highlight';
                 container.appendChild(missingElement);
