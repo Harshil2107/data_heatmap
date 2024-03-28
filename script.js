@@ -1,3 +1,5 @@
+let isFirstLoad = true;
+
 function loadFiles() {
     const textFileInput = document.getElementById('textFileInput');
     const jsonFileInput = document.getElementById('jsonFileInput');
@@ -42,9 +44,11 @@ function populateRegionDropdown(regionalInfo) {
             displayAndHighlightInstructions(window.textData, jsonData);
         });
     };
-    regionSelect.onchange(); // Trigger the event listener immediately
+    if (isFirstLoad) {
+        regionSelect.onchange(); // Trigger the event listener immediately
+        isFirstLoad = false;
+    }
 }
-
 
 // async function readAndProcessFiles(textFile, jsonFile) {
 //     const textData = await readFile(textFile);
